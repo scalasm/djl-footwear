@@ -1,3 +1,3 @@
-# djl
+# DJL (Deep Java Library)
 
-Deep Java Library (DJL)
+DJL, Deep Java Library, is a deep learning framework created by Amazon to develop machine learning (ML) and deep learning (DL) models natively in Java. 
