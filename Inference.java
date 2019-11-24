@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 public class Inference {
     private static final Logger logger = LoggerFactory.getLogger(Inference.class);
 
-    // values must match settings used during training
+    //values must match settings used during training
     private static final int NUM_OF_OUTPUT = 4;
     private static final int NEW_HEIGHT = 100;
     private static final int NEW_WIDTH = 100;
@@ -46,10 +46,18 @@ public class Inference {
         String modelParamsName = "shoeclassifier";
 
         // the path of image to classify
-        String imageFilePath = "src/test/resources/shoes.jpg";
+        // 0-boots; 1-sandals; 2-shoes; 3-slippers
+
+        // String imageFilePath = "src/test/resources/boots.jpg";
+        // String imageFilePath = "src/test/resources/sandals.jpg";
+        // String imageFilePath = "src/test/resources/shoes.jpg";
+         String imageFilePath = "src/test/resources/slippers.jpg";
 
         //Load the image file from the path
         BufferedImage img = BufferedImageUtils.fromFile(Paths.get(imageFilePath));
+
+        //holds the probability score per label
+        Classifications predictResult;
 
         try (Model model = Models.getModel(NUM_OF_OUTPUT, NEW_HEIGHT, NEW_WIDTH)) {
             //load the model
@@ -58,18 +66,13 @@ public class Inference {
             //define a translator for pre and post processing
             Translator<BufferedImage, Classifications> translator = new MyTranslator();
 
-            //holds the probability score per label
-            Classifications predictResult = null;
-
             //run the inference using a Predictor
             try (Predictor<BufferedImage, Classifications> predictor = model.newPredictor(translator)) {
                 predictResult = predictor.predict(img);
             }
-
-            //close the model to free up memory
-            model.close();
-            return predictResult;
         }
+
+        return predictResult;
     }
 
     private static final class MyTranslator implements Translator<BufferedImage, Classifications> {

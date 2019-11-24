@@ -11,7 +11,8 @@ public class Models {
         //create new instance of an empty model
         ai.djl.Model model = ai.djl.Model.newInstance();
 
-        //Block is composable unit that forms a neural network; combine them like Lego blocks to form a complex network
+        //Block is a composable unit that forms a neural network; combine them like Lego blocks
+        //to form a complex network
         Block resNet50 =
                 //construct the network
                 new ResNetV1.Builder()

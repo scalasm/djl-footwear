@@ -2,7 +2,6 @@ import ai.djl.Model;
 import ai.djl.basicdataset.ImageFolder;
 import ai.djl.examples.training.util.AbstractTraining;
 import ai.djl.examples.training.util.Arguments;
-import ai.djl.examples.training.util.TrainingUtils;
 import ai.djl.modality.cv.transform.Resize;
 import ai.djl.modality.cv.transform.ToTensor;
 import ai.djl.ndarray.types.Shape;
@@ -10,6 +9,8 @@ import ai.djl.repository.SimpleRepository;
 import ai.djl.training.DefaultTrainingConfig;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
+import ai.djl.training.dataset.Batch;
+import ai.djl.training.dataset.Dataset;
 import ai.djl.training.initializer.Initializer;
 import ai.djl.training.initializer.XavierInitializer;
 import ai.djl.training.loss.Loss;
@@ -18,17 +19,34 @@ import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.optimizer.learningrate.LearningRateTracker;
 import ai.djl.training.optimizer.learningrate.MultiFactorTracker;
 import ai.djl.translate.Pipeline;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
 
+
 /*
- In training, multiple passes (or epochs) are made over the training data trying to find patterns and trends in the data, which are then
- stored in the model. During the process, the model is evaluated for accuracy using the validation data. The model is updated with findings
- over each epoch, which improves the accuracy of the model.
+ In training, multiple passes (or epochs) are made over the training data trying to find patterns and trends in the
+ data, which are then stored in the model. During the process, the model is evaluated for accuracy using the
+ validation data. The model is updated with findings over each epoch, which improves the accuracy of the model.
  */
 public final class Training extends AbstractTraining {
+    private static final Logger logger = LoggerFactory.getLogger(Training.class);
+
+    //the number of classification labels: boots, sandals, shoes, slippers
+    private static final int NUM_OF_OUTPUT = 4;
+
+    //the height and width for pre-processing of the image
+    private static final int NEW_HEIGHT = 100;
+    private static final int NEW_WIDTH = 100;
+
+    //represents number of training samples processed before the model is updated
+    private static final int BATCH_SIZE = 32;
+
+    //the number of passes over the complete dataset
+    private static final int EPOCHS = 10;
+
     public static void main(String[] args) {
         new Training().runExample(args);
     }
@@ -41,78 +59,43 @@ public final class Training extends AbstractTraining {
         //identify source of validation data
         String validateDatasetRoot = "src/test/resources/imagefolder/validate";
 
-        //the height and width for pre-processing of the image
-        int newHeight = 100;
-        int newWidth = 100;
-
-        //the batch size for training
-        //represents number of training samples processed before the model is updated
-        int batchSize = 32;
-
-        //the number of classification labels: boots, sandals, shoes, slippers
-        int numOfOutput = 4;
-
-        //the number of passes over the complete dataset
-        int numEpoch = 10;
-
         //the location to save the model
         String modelParamsPath = "build/logs";
 
         //the name of the model
         String modelParamsName = "shoeclassifier";
 
-        // create training ImageFolder dataset
-        ImageFolder trainingDataset = new ImageFolder.Builder()
-                .setRepository(new SimpleRepository(Paths.get(trainingDatasetRoot)))
-                .optPipeline(
-                        // create preprocess pipeline
-                        new Pipeline()
-                                .add(new Resize(newWidth, newHeight))
-                                .add(new ToTensor()))
-                .setRandomSampling(batchSize)
-                .build();
-
-        trainingDataset.prepare();
+        //create training ImageFolder dataset
+        ImageFolder trainingDataset = initDataset(trainingDatasetRoot);
 
         //create validation ImageFolder dataset
-        ImageFolder validateDataset = new ImageFolder.Builder()
-                .setRepository(new SimpleRepository(Paths.get(validateDatasetRoot)))
-                .optPipeline(
-                        // create preprocess pipeline
-                        new Pipeline()
-                                .add(new Resize(newWidth, newHeight))
-                                .add(new ToTensor()))
-                .setRandomSampling(batchSize)
-                .build();
+        ImageFolder validateDataset = initDataset(validateDatasetRoot);
 
-        validateDataset.prepare();
-
-        trainDataSize = (int) (trainingDataset.size() / batchSize);
-        validateDataSize = (int) (validateDataset.size() / batchSize);
+        trainDataSize = (int) (trainingDataset.size() / BATCH_SIZE);
+        validateDataSize = (int) (validateDataset.size() / BATCH_SIZE);
 
         //set loss function
         //loss function evaluates model's predictions against the correct answer (during training)
         //higher numbers are bad - means model performed poorly; indicates more errors; want to minimize errors (loss)
         loss = Loss.softmaxCrossEntropyLoss();
 
-        try (Model model = Models.getModel(numOfOutput, newHeight, newWidth)) {
-
-            TrainingConfig config = setupTrainingConfig(batchSize, loss);
+        try (Model model = Models.getModel(NUM_OF_OUTPUT, NEW_HEIGHT, NEW_WIDTH)) {
+            TrainingConfig config = setupTrainingConfig(loss);
 
             try (Trainer trainer = model.newTrainer(config)) {
                 trainer.setMetrics(metrics);
                 trainer.setTrainingListener(this);
 
-                Shape inputShape = new Shape(1, 3, newHeight, newWidth);
+                Shape inputShape = new Shape(1, 3, NEW_HEIGHT, NEW_WIDTH);
 
                 // initialize trainer with proper input shape
                 trainer.initialize(inputShape);
 
                 //find the patterns in data
-                TrainingUtils.fit(trainer, numEpoch, trainingDataset, validateDataset, "build/logs/training");
+                fit(trainer, trainingDataset, validateDataset, "build/logs/training");
 
                 //set model properties
-                model.setProperty("Epoch", String.valueOf(numEpoch));
+                model.setProperty("Epoch", String.valueOf(EPOCHS));
                 model.setProperty("Accuracy", String.format("%.2f", getValidationAccuracy()));
 
                 // save the model after done training for inference later
@@ -122,10 +105,25 @@ public final class Training extends AbstractTraining {
         }
     }
 
-    private static TrainingConfig setupTrainingConfig(int batchSize, Loss loss) {
+    private ImageFolder initDataset(String datasetRoot) throws IOException {
+        ImageFolder dataset = new ImageFolder.Builder()
+                .setRepository(new SimpleRepository(Paths.get(datasetRoot)))
+                .optPipeline(
+                        // create preprocess pipeline
+                        new Pipeline()
+                                .add(new Resize(NEW_WIDTH, NEW_HEIGHT))
+                                .add(new ToTensor()))
+                .setSampling(BATCH_SIZE,true)
+                .build();
+
+        dataset.prepare();
+        return dataset;
+    }
+
+    private static TrainingConfig setupTrainingConfig(Loss loss) {
         // epoch number to change learning rate
         int[] epoch = {3, 5, 8};
-        int[] steps = Arrays.stream(epoch).map(k -> k * 60000 / batchSize).toArray();
+        int[] steps = Arrays.stream(epoch).map(k -> k * 60000 / BATCH_SIZE).toArray();
 
         //initialize neural network weights using Xavier initializer
         Initializer initializer =
@@ -148,7 +146,7 @@ public final class Training extends AbstractTraining {
         //Stochastic gradient descent
         Optimizer optimizer =
                 Optimizer.sgd()
-                        .setRescaleGrad(1.0f / batchSize)
+                        .setRescaleGrad(1.0f / BATCH_SIZE)
                         .setLearningRateTracker(learningRateTracker)
                         .optMomentum(0.9f)
                         .optWeightDecays(0.001f)
@@ -158,6 +156,35 @@ public final class Training extends AbstractTraining {
         return new DefaultTrainingConfig(initializer, loss)
                 .setOptimizer(optimizer)
                 .addTrainingMetric(new Accuracy())
-                .setBatchSize(batchSize);
+                .setBatchSize(BATCH_SIZE);
     }
+
+    public void fit(Trainer trainer, Dataset trainingDataset, Dataset validateDataset,
+                    String outputDir) throws IOException {
+
+        for (int epoch = 0; epoch < EPOCHS; epoch++) {
+            for (Batch batch : trainer.iterateDataset(trainingDataset)) {
+                trainer.trainBatch(batch);
+                trainer.step();
+                batch.close();
+            }
+
+            if (validateDataset != null) {
+                for (Batch batch : trainer.iterateDataset(validateDataset)) {
+                    trainer.validateBatch(batch);
+                    batch.close();
+                }
+            }
+            // reset training and validation metric at end of epoch
+            trainer.resetTrainingMetrics();
+
+            // save model at end of each epoch
+            if (outputDir != null) {
+                Model model = trainer.getModel();
+                model.setProperty("Epoch", String.valueOf(epoch));
+                model.save(Paths.get(outputDir), "resnetv1");
+            }
+        }
+    }
+
 }
