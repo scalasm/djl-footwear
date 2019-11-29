@@ -73,7 +73,7 @@ public final class Training extends AbstractTraining {
 
         batchSize = BATCH_SIZE; // there is a batchSize field in AbstractTraining
 
-        //tell the machine how batches to process
+        //tell the machine how many batches to process
         trainDataSize = (int) (trainingDataset.size() / BATCH_SIZE);
         validateDataSize = (int) (validateDataset.size() / BATCH_SIZE);
 
