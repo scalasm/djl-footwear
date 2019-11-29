@@ -29,7 +29,10 @@ public class Inference {
     private static final Logger logger = LoggerFactory.getLogger(Inference.class);
 
     //values must match settings used during training
+    //the number of classification labels: boots, sandals, shoes, slippers
     private static final int NUM_OF_OUTPUT = 4;
+
+    //the height and width for pre-processing of the image
     private static final int NEW_HEIGHT = 100;
     private static final int NEW_WIDTH = 100;
 
@@ -48,10 +51,10 @@ public class Inference {
         // the path of image to classify
         // 0-boots; 1-sandals; 2-shoes; 3-slippers
 
-        // String imageFilePath = "src/test/resources/boots.jpg";
-        // String imageFilePath = "src/test/resources/sandals.jpg";
-        // String imageFilePath = "src/test/resources/shoes.jpg";
-         String imageFilePath = "src/test/resources/slippers.jpg";
+        String imageFilePath = "src/test/resources/sandals.jpg";
+        //String imageFilePath = "src/test/resources/boots.jpg";
+        //String imageFilePath = "src/test/resources/shoes.jpg";
+        //String imageFilePath = "src/test/resources/slippers.jpg";
 
         //Load the image file from the path
         BufferedImage img = BufferedImageUtils.fromFile(Paths.get(imageFilePath));
@@ -59,11 +62,12 @@ public class Inference {
         //holds the probability score per label
         Classifications predictResult;
 
-        try (Model model = Models.getModel(NUM_OF_OUTPUT, NEW_HEIGHT, NEW_WIDTH)) {
+        try (Model model = Models.getModel(NUM_OF_OUTPUT, NEW_HEIGHT, NEW_WIDTH)) { //empty model instance
             //load the model
             model.load(Paths.get(modelParamsPath), modelParamsName);
 
             //define a translator for pre and post processing
+            //out of the box this translator converts images to ResNet friendly ResNet 18 shape
             Translator<BufferedImage, Classifications> translator = new MyTranslator();
 
             //run the inference using a Predictor

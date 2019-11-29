@@ -3,7 +3,7 @@ import ai.djl.nn.Block;
 import ai.djl.zoo.cv.classification.ResNetV1;
 
 /*
-    Use a neural network (ResNet-50) to train the model
+    Deep learning uses a neural network (ResNet-50) to train the model
     ResNet-50 is a deep residual network with 50 layers; good for image classification
  */
 public class Models {
